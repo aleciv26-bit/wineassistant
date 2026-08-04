@@ -35,14 +35,14 @@ export default function Home() {
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: 'Si è verificato un piccolo problema, riprova tra poco.' }
+          { role: 'assistant', content: 'Si è verificato un errore nel recupero della risposta.' }
         ]);
       }
     } catch (err) {
-      console.error("Errore fetch client:", err);
+      console.error(err);
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Impossibile connettersi al server.' }
+        { role: 'assistant', content: 'Errore di connessione al server.' }
       ]);
     } finally {
       setLoading(false);
@@ -50,66 +50,59 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-900 text-white">
-      {/* Header */}
-      <header className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-red-800 flex items-center justify-center text-xl">
-            🍷
-          </div>
-          <div>
-            <h1 className="font-bold text-lg">WineAssistant</h1>
-            <p className="text-xs text-slate-400">Assistente virtuale per la tua cantina</p>
-          </div>
-        </div>
-      </header>
-
-      {/* Chat Container */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 max-w-3xl mx-auto w-full">
+    <div className="flex flex-col h-screen bg-slate-950 text-slate-100 font-sans">
+      {/* Messages Scroll Area */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
-          <div className="text-center text-slate-500 my-10">
-            Fai una domanda a WineAssistant su degustazioni, vini o orari!
+          <div className="text-center text-slate-400 my-8 text-sm px-4">
+            <span className="text-3xl block mb-2">🍷</span>
+            Ciao! Sono l'assistente virtuale della cantina. Come posso aiutarti oggi?
           </div>
         )}
+        
         {messages.map((m, index) => (
           <div
             key={index}
             className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] p-3 rounded-2xl ${
+              className={`max-w-[85%] p-3.5 rounded-2xl text-sm leading-relaxed ${
                 m.role === 'user'
-                  ? 'bg-red-900 text-white rounded-br-none'
-                  : 'bg-slate-800 text-slate-200 border border-slate-700 rounded-bl-none'
+                  ? 'bg-rose-900 text-amber-50 rounded-br-none shadow'
+                  : 'bg-slate-900 text-slate-200 border border-slate-800 rounded-bl-none shadow-md'
               }`}
             >
-              {m.content}
+              {/* whitespace-pre-wrap mantiene i ritorni a capo e gli elenchi puntati */}
+              <div className="whitespace-pre-wrap break-words">
+                {m.content}
+              </div>
             </div>
           </div>
         ))}
+
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-slate-800 p-3 rounded-2xl text-slate-400 animate-pulse">
-              WineAssistant sta digitando...
+            <div className="bg-slate-900 border border-slate-800 p-3 rounded-2xl text-xs text-rose-300 animate-pulse flex items-center gap-2">
+              <span>🍷</span> WineAssistant sta scrivendo...
             </div>
           </div>
         )}
       </main>
 
       {/* Input Form */}
-      <footer className="p-4 bg-slate-800 border-t border-slate-700">
-        <form onSubmit={sendMessage} className="max-w-3xl mx-auto flex gap-2">
+      <footer className="p-3 bg-slate-900/90 border-t border-slate-800">
+        <form onSubmit={sendMessage} className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Scrivi un messaggio..."
-            className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500"
+            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-800 transition"
           />
           <button
             type="submit"
             disabled={loading}
-            className="bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-medium transition"
+            className="bg-rose-900 hover:bg-rose-800 disabled:opacity-50 text-amber-100 px-4 py-2.5 rounded-xl font-medium text-sm transition shadow cursor-pointer"
           >
             Invia
           </button>
