@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! // Usa la service role key per poter scrivere
 );
-const resend = new Resend(process.env.RESEND_API_KEY);
+//const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Definizione del Tool che l'IA deve usare per salvare la prenotazione
 const tools = [
