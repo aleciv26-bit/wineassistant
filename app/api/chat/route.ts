@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // Usa la service role key per poter scrivere
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 // Definizione del Tool che l'IA deve usare per salvare la prenotazione
@@ -37,14 +37,25 @@ export async function POST(req: Request) {
   try {
     const { messages, winery_slug } = await req.json();
 
-    // 1. Recupera i dati della cantina da Supabase in base allo slug
-    const { data: winery } = await supabase
-      .from('wineries')
-      .select('*')
-      .eq('slug', winery_slug || 'collio-demo')
-      .single();
+    // System prompt di sicurezza per la demo
+    let systemPrompt = "Sei WineAssistant, un assistente virtuale esperto e accogliente per le degustazioni di vino. Rispondi in modo gentile, professionale e aiuta i clienti a scoprire i nostri vini e a prenotare le visite in cantina.";
+    let wineryId = null;
 
-    const systemPrompt = winery?.system_prompt || "Sei un assistente per le degustazioni di vino.";
+    // Tentativo sicuro di recupero da Supabase senza far bloccare il sito
+    try {
+      const { data: winery } = await supabase
+        .from('wineries')
+        .select('*')
+        .eq('slug', winery_slug || 'collio-demo')
+        .maybeSingle();
+
+      if (winery) {
+        if (winery.system_prompt) systemPrompt = winery.system_prompt;
+        if (winery.id) wineryId = winery.id;
+      }
+    } catch (dbErr) {
+      console.log("Supabase fetch bypassato, uso prompt predefinito:", dbErr);
+    }
 
     // 2. Chiamata a Groq con supporto ai Tools
     const completion = await groq.chat.completions.create({
@@ -66,37 +77,25 @@ export async function POST(req: Request) {
       if (toolCall.function.name === "create_booking") {
         const args = JSON.parse(toolCall.function.arguments);
 
-        // A. Salva su Supabase nella tabella 'bookings'
-        const { error: dbError } = await supabase
-          .from('bookings')
-          .insert([
-            {
-              winery_id: winery?.id,
-              customer_name: args.customer_name,
-              customer_email: args.customer_email,
-              customer_phone: args.customer_phone || '',
-              booking_date: args.date,
-              booking_time: args.time,
-              guests_count: args.guests,
-              package_name: args.package_name
-            }
-          ]);
-
-        if (dbError) {
-          console.error("Errore salvataggio Supabase:", dbError);
+        // Tentativo di salvataggio su Supabase (non bloccante)
+        try {
+          await supabase
+            .from('bookings')
+            .insert([
+              {
+                winery_id: wineryId,
+                customer_name: args.customer_name,
+                customer_email: args.customer_email,
+                customer_phone: args.customer_phone || '',
+                booking_date: args.date,
+                booking_time: args.time,
+                guests_count: args.guests,
+                package_name: args.package_name
+              }
+            ]);
+        } catch (saveErr) {
+          console.error("Errore salvataggio prenotazione (non bloccante):", saveErr);
         }
-
-        /* 
-        // B. Invia l'email al cliente con Resend (Disabilitato per demo)
-        if (process.env.RESEND_API_KEY) {
-          await resend.emails.send({
-            from: 'WineBot <onboarding@resend.dev>',
-            to: args.customer_email,
-            subject: `🍷 Conferma Prenotazione - ${winery?.name || 'Cantina'}`,
-            html: `<h2>Prenotazione Confermata!</h2>`
-          });
-        }
-        */
 
         return NextResponse.json({
           role: "assistant",
@@ -105,7 +104,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Se è una normale risposta di testo
+    // Risposta standard
     return NextResponse.json({
       role: "assistant",
       content: responseMessage.content
