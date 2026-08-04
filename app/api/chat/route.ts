@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import Groq from 'groq-sdk';
 import { createClient } from '@supabase/supabase-js';
-//import { Resend } from 'resend';
 
 // Inizializzazione Client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -9,7 +8,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! // Usa la service role key per poter scrivere
 );
-//const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Definizione del Tool che l'IA deve usare per salvare la prenotazione
 const tools = [
@@ -86,31 +84,23 @@ export async function POST(req: Request) {
 
         if (dbError) {
           console.error("Errore salvataggio Supabase:", dbError);
-        } else {
-          // B. Invia l'email al cliente con Resend
-          if (process.env.RESEND_API_KEY) {
-            await resend.emails.send({
-              from: 'WineBot <onboarding@resend.dev>', // In produzione metterai il tuo dominio
-              to: args.customer_email,
-              subject: `🍷 Conferma Prenotazione - ${winery?.name || 'Cantina'}`,
-              html: `
-                <h2>Prenotazione Confermata!</h2>
-                <p>Ciao <b>${args.customer_name}</b>, ti aspettiamo presso <b>${winery?.name}</b>!</p>
-                <ul>
-                  <li><b>Esperienza:</b> ${args.package_name}</li>
-                  <li><b>Data:</b> ${args.date}</li>
-                  <li><b>Ora:</b> ${args.time}</li>
-                  <li><b>Persone:</b> ${args.guests}</li>
-                </ul>
-                <p>A presto!</p>
-              `
-            });
-          }
         }
+
+        /* 
+        // B. Invia l'email al cliente con Resend (Disabilitato per demo)
+        if (process.env.RESEND_API_KEY) {
+          await resend.emails.send({
+            from: 'WineBot <onboarding@resend.dev>',
+            to: args.customer_email,
+            subject: `🍷 Conferma Prenotazione - ${winery?.name || 'Cantina'}`,
+            html: `<h2>Prenotazione Confermata!</h2>`
+          });
+        }
+        */
 
         return NextResponse.json({
           role: "assistant",
-          content: `Perfetto ${args.customer_name}! Ho registrato la tua prenotazione per **${args.package_name}** in data **${args.date}** alle **${args.time}** per **${args.guests} persone**. Ti abbiamo inviato una mail di conferma all'indirizzo **${args.customer_email}**.`
+          content: `Perfetto ${args.customer_name}! Ho registrato la tua prenotazione per **${args.package_name}** in data **${args.date}** alle **${args.time}** per **${args.guests} persone**.`
         });
       }
     }
