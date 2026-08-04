@@ -35,13 +35,15 @@ const tools = [
 
 export async function POST(req: Request) {
   try {
-    const { messages, winery_slug } = await req.json();
+    const body = await req.json();
+    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const winery_slug = body.winery_slug;
 
-    // System prompt di sicurezza per la demo
+    // System prompt di default
     let systemPrompt = "Sei WineAssistant, un assistente virtuale esperto e accogliente per le degustazioni di vino. Rispondi in modo gentile, professionale e aiuta i clienti a scoprire i nostri vini e a prenotare le visite in cantina.";
     let wineryId = null;
 
-    // Tentativo sicuro di recupero da Supabase senza far bloccare il sito
+    // Recupero dati da Supabase (sicuro)
     try {
       const { data: winery } = await supabase
         .from('wineries')
@@ -54,30 +56,35 @@ export async function POST(req: Request) {
         if (winery.id) wineryId = winery.id;
       }
     } catch (dbErr) {
-      console.log("Supabase fetch bypassato, uso prompt predefinito:", dbErr);
+      console.log("Supabase fetch bypassato:", dbErr);
     }
 
-    // 2. Chiamata a Groq con supporto ai Tools
+    // Costruzione della lista messaggi sicura
+    const formattedMessages = [
+      { role: "system", content: systemPrompt },
+      ...messages.map((m: any) => ({
+        role: m.role || 'user',
+        content: m.content || ''
+      }))
+    ];
+
+    // Chiamata a Groq
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages
-      ],
+      messages: formattedMessages as any,
       tools: tools as any,
       tool_choice: "auto"
     });
 
     const responseMessage = completion.choices[0].message;
 
-    // 3. Controlla se Groq ha deciso di chiamare il Tool di prenotazione
+    // Gestione Tool di prenotazione
     if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
       const toolCall = responseMessage.tool_calls[0];
       
       if (toolCall.function.name === "create_booking") {
         const args = JSON.parse(toolCall.function.arguments);
 
-        // Tentativo di salvataggio su Supabase (non bloccante)
         try {
           await supabase
             .from('bookings')
@@ -94,7 +101,7 @@ export async function POST(req: Request) {
               }
             ]);
         } catch (saveErr) {
-          console.error("Errore salvataggio prenotazione (non bloccante):", saveErr);
+          console.error("Errore salvataggio (non bloccante):", saveErr);
         }
 
         return NextResponse.json({
@@ -104,7 +111,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Risposta standard
     return NextResponse.json({
       role: "assistant",
       content: responseMessage.content
