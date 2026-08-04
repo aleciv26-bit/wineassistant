@@ -102,7 +102,7 @@ export default function Home() {
             </div>
             <div>
               <h1 className="text-lg font-semibold tracking-tight text-white">
-                WineBot
+                WineAssistant
               </h1>
               <p className="text-sm text-slate-400">
                 Assistente virtuale per la tua cantina
