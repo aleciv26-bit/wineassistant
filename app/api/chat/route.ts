@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import Groq from 'groq-sdk';
 import { createClient } from '@supabase/supabase-js';
-import { Resend } from 'resend';
+//import { Resend } from 'resend';
 
 // Inizializzazione Client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
