@@ -15,7 +15,7 @@ const tools = [
     type: "function",
     function: {
       name: "create_booking",
-      description: "Salva una prenotazione nel database quando l'utente conferma tutti i dati.",
+      description: "Salva OBBLIGATORIAMENTE una prenotazione nel database quando l'utente fornisce o conferma i dati principali (nome, email, data, ora, ospiti, pacchetto).",
       parameters: {
         type: "object",
         properties: {
@@ -23,7 +23,7 @@ const tools = [
           customer_email: { type: "string", description: "Email del cliente" },
           customer_phone: { type: "string", description: "Telefono del cliente" },
           date: { type: "string", description: "Data nel formato YYYY-MM-DD" },
-          time: { type: "string", description: "Orario scelto (es. 11:00)" },
+          time: { type: "string", description: "Orario scelto (es. 11:00 o 15:00)" },
           guests: { type: "number", description: "Numero di persone" },
           package_name: { type: "string", description: "Nome del pacchetto o esperienza" }
         },
@@ -40,26 +40,30 @@ export async function POST(req: Request) {
     const winery_slug = body.winery_slug;
 
     // System prompt di default
-    let systemPrompt = "Sei WineAssistant, un assistente virtuale esperto e accogliente per le degustazioni di vino. Rispondi in modo gentile, professionale e aiuta i clienti a scoprire i nostri vini e a prenotare le visite in cantina.";
+    let systemPrompt = "Sei WineAssistant, un assistente virtuale esperto e accogliente per le degustazioni di vino. Quando raccogli i dati per una prenotazione, invoca IMMEDIATAMENTE la funzione create_booking.";
     let wineryId = null;
 
-    // Recupero dati da Supabase (sicuro)
+    // Recupero dati da Supabase
     try {
-      const { data: winery } = await supabase
+      const { data: winery, error: wineryErr } = await supabase
         .from('wineries')
         .select('*')
         .eq('slug', winery_slug || 'collio-demo')
         .maybeSingle();
+
+      if (wineryErr) {
+        console.error("Errore recupero winery:", wineryErr);
+      }
 
       if (winery) {
         if (winery.system_prompt) systemPrompt = winery.system_prompt;
         if (winery.id) wineryId = winery.id;
       }
     } catch (dbErr) {
-      console.log("Supabase fetch bypassato:", dbErr);
+      console.error("Supabase fetch error:", dbErr);
     }
 
-    // Costruzione della lista messaggi sicura
+    // Costruzione messaggi
     const formattedMessages = [
       { role: "system", content: systemPrompt },
       ...messages.map((m: any) => ({
@@ -84,40 +88,50 @@ export async function POST(req: Request) {
       
       if (toolCall.function.name === "create_booking") {
         const args = JSON.parse(toolCall.function.arguments);
+        console.log("🛠️ Tool create_booking invocato dall'IA con argomenti:", args);
 
-        try {
-          await supabase
-            .from('bookings')
-            .insert([
-              {
-                winery_id: wineryId,
-                customer_name: args.customer_name,
-                customer_email: args.customer_email,
-                customer_phone: args.customer_phone || '',
-                booking_date: args.date,
-                booking_time: args.time,
-                guests_count: args.guests,
-                package_name: args.package_name
-              }
-            ]);
-        } catch (saveErr) {
-          console.error("Errore salvataggio (non bloccante):", saveErr);
+        // Inserimento con verifica di errore esplicita
+        const { data: insertData, error: insertError } = await supabase
+          .from('bookings')
+          .insert([
+            {
+              winery_id: wineryId,
+              customer_name: args.customer_name,
+              customer_email: args.customer_email,
+              customer_phone: args.customer_phone || '',
+              booking_date: args.date,
+              booking_time: args.time,
+              guests_count: Number(args.guests),
+              package_name: args.package_name
+            }
+          ])
+          .select();
+
+        if (insertError) {
+          console.error("❌ ERRORE SUPABASE INSERT:", insertError);
+          return NextResponse.json({
+            role: "assistant",
+            content: `Ho provato a registrare la prenotazione ma si è verificato un errore tecnico nel database: ${insertError.message}`
+          });
         }
+
+        console.log("✅ PRENOTAZIONE SALVATA CON SUCCESSO SU SUPABASE:", insertData);
 
         return NextResponse.json({
           role: "assistant",
-          content: `Perfetto ${args.customer_name}! Ho registrato la tua prenotazione per **${args.package_name}** in data **${args.date}** alle **${args.time}** per **${args.guests} persone**.`
+          content: `Perfetto **${args.customer_name}**! 🎉\n\nHo registrato con successo la tua prenotazione per **${args.package_name}**:\n- **Data:** ${args.date}\n- **Ora:** ${args.time}\n- **Ospiti:** ${args.guests} persone\n\nTi abbiamo inviato una conferma a **${args.customer_email}**. Ti aspettiamo in cantina!`
         });
       }
     }
 
+    // Risposta testo normale
     return NextResponse.json({
       role: "assistant",
       content: responseMessage.content
     });
 
-  } catch (error) {
-    console.error("Errore API Chat:", error);
-    return NextResponse.json({ error: "Errore durante l'elaborazione" }, { status: 500 });
+  } catch (error: any) {
+    console.error("❌ Errore API Chat generale:", error);
+    return NextResponse.json({ error: error.message || "Errore durante l'elaborazione" }, { status: 500 });
   }
 }
