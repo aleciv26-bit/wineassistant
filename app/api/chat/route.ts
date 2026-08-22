@@ -72,9 +72,9 @@ export async function POST(req: Request) {
       }))
     ];
 
-    // Chiamata a Groq con il modello qwen-2.5-32b
+    // Chiamata a Groq con il nome del modello UFFICIALE e ATTIVO
     const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+      model: "llama-3.1-8b-instant", // <--- Usa questo nome esatto
       messages: formattedMessages as any,
       tools: tools as any,
       tool_choice: "auto"
