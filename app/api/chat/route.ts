@@ -66,8 +66,8 @@ export async function POST(req: Request) {
     ];
 
     // MODELLO CON SUPPORTO COMPLETO AI TOOLS / FUNCTION CALLING
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+   const completion = await groq.chat.completions.create({
+      model: "qwen-3.6-27b", // Oppure "gpt-oss-120b"
       messages: formattedMessages as any,
       tools: tools as any,
       tool_choice: "auto"
