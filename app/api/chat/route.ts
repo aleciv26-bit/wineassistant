@@ -74,7 +74,7 @@ export async function POST(req: Request) {
 
     // Chiamata a Groq con il modello qwen-2.5-32b
     const completion = await groq.chat.completions.create({
-      model: "qwen-2.5-32b",
+      model: "llama-3.1-8b-instant",
       messages: formattedMessages as any,
       tools: tools as any,
       tool_choice: "auto"
