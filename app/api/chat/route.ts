@@ -2,14 +2,12 @@ import { NextResponse } from 'next/server';
 import Groq from 'groq-sdk';
 import { createClient } from '@supabase/supabase-js';
 
-// Inizializzazione Client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
-// Definizione del Tool
 const tools = [
   {
     type: "function",
@@ -42,7 +40,6 @@ export async function POST(req: Request) {
     let systemPrompt = "Sei WineAssistant, un assistente virtuale esperto e accogliente per le degustazioni di vino. Quando raccogli i dati per una prenotazione, invoca IMMEDIATAMENTE la funzione create_booking.";
     let wineryId = null;
 
-    // Recupero dati winery in modo sicuro (senza bloccare la chat in caso di errore DB)
     if (supabase) {
       try {
         const { data: winery } = await supabase
@@ -56,11 +53,10 @@ export async function POST(req: Request) {
           if (winery.id) wineryId = winery.id;
         }
       } catch (dbErr) {
-        console.error("Supabase fetch error (ignorato per non bloccare la chat):", dbErr);
+        console.error("Supabase fetch error:", dbErr);
       }
     }
 
-    // Costruzione messaggi
     const formattedMessages = [
       { role: "system", content: systemPrompt },
       ...messages.map((m: any) => ({
@@ -69,7 +65,7 @@ export async function POST(req: Request) {
       }))
     ];
 
-    // Chiamata a Groq con gestione fallback sul modello
+    // MODELLO CORRETTO E ATTIVO SU GROQ
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
       messages: formattedMessages as any,
@@ -79,13 +75,11 @@ export async function POST(req: Request) {
 
     const responseMessage = completion.choices[0].message;
 
-    // Gestione Tool di prenotazione
     if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
       const toolCall = responseMessage.tool_calls[0];
       
       if (toolCall.function.name === "create_booking") {
         const args = JSON.parse(toolCall.function.arguments);
-        console.log("🛠️ Tool create_booking invocato con argomenti:", args);
 
         if (supabase) {
           const bookingPayload: Record<string, any> = {
@@ -104,7 +98,6 @@ export async function POST(req: Request) {
             .insert([bookingPayload])
             .select();
 
-          // Se la colonna 'package_name' non esiste, tenta con 'experience_name'
           if (insertError && insertError.message.includes("package_name")) {
             delete bookingPayload.package_name;
             bookingPayload.experience_name = args.package_name;
@@ -114,7 +107,6 @@ export async function POST(req: Request) {
               .insert([bookingPayload])
               .select();
 
-            insertData = retry.data;
             insertError = retry.error;
           }
 
@@ -122,11 +114,9 @@ export async function POST(req: Request) {
             console.error("❌ ERRORE SUPABASE INSERT:", insertError);
             return NextResponse.json({
               role: "assistant",
-              content: `Ho provato a registrare la prenotazione ma si è verificato un errore nel database: ${insertError.message}`
+              content: `Errore nel salvataggio del database: ${insertError.message}`
             });
           }
-
-          console.log("✅ PRENOTAZIONE SALVATA CON SUCCESSO SU SUPABASE:", insertData);
         }
 
         return NextResponse.json({
@@ -136,16 +126,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // Risposta testo normale
     return NextResponse.json({
       role: "assistant",
-      content: responseMessage.content || "Ciao! Come posso aiutarti oggi?"
+      content: responseMessage.content || "Ciao! Come posso aiutarti?"
     });
 
   } catch (error: any) {
     console.error("❌ Errore API Chat generale:", error);
-    return NextResponse.json({ 
-      error: error.message || "Errore durante l'elaborazione" 
-    }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Errore durante l'elaborazione" }, { status: 500 });
   }
 }
