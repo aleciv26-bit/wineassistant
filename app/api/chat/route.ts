@@ -65,13 +65,34 @@ export async function POST(req: Request) {
       }))
     ];
 
-    // MODELLO CON SUPPORTO COMPLETO AI TOOLS / FUNCTION CALLING
-   const completion = await groq.chat.completions.create({
-      model: "qwen-3.6-27b", // Oppure "gpt-oss-120b"
-      messages: formattedMessages as any,
-      tools: tools as any,
-      tool_choice: "auto"
-    });
+    // Lista dei modelli in ordine di preferenza con i nomi esatti di registro Groq
+    const candidateModels = [
+      "qwen/qwen3.6-27b",
+      "llama-3.1-8b-instant"
+    ];
+
+    let completion = null;
+    let lastError = null;
+
+    // Tentativo dinamico con Fallback su modello alternativo
+    for (const modelId of candidateModels) {
+      try {
+        completion = await groq.chat.completions.create({
+          model: modelId,
+          messages: formattedMessages as any,
+          tools: tools as any,
+          tool_choice: "auto"
+        });
+        if (completion) break; // Risposta ottenuta con successo
+      } catch (err: any) {
+        console.warn(`Fallita chiamata con modello ${modelId}:`, err?.message || err);
+        lastError = err;
+      }
+    }
+
+    if (!completion) {
+      throw lastError || new Error("Nessun modello Groq ha risposto con successo.");
+    }
 
     const responseMessage = completion.choices[0].message;
 
