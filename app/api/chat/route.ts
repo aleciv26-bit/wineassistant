@@ -74,10 +74,10 @@ export async function POST(req: Request) {
 
     // Chiamata a Groq
     const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: formattedMessages as any,
-      tools: tools as any,
-      tool_choice: "auto"
+    model: "qwen-2.5-32b", // oppure "llama3-70b-8192"
+    messages: formattedMessages as any,
+    tools: tools as any,
+    tool_choice: "auto"
     });
 
     const responseMessage = completion.choices[0].message;
