@@ -65,9 +65,9 @@ export async function POST(req: Request) {
       }))
     ];
 
-    // MODELLO CORRETTO E ATTIVO SU GROQ
+    // MODELLO CON SUPPORTO COMPLETO AI TOOLS / FUNCTION CALLING
     const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+      model: "llama-3.3-70b-versatile",
       messages: formattedMessages as any,
       tools: tools as any,
       tool_choice: "auto"
